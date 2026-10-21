@@ -414,3 +414,7 @@ body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-
   .pm .bar{min-width:0}
   .dmg{font-size:3rem}
 }
+
+/* Morgana placeholder: Safari ignores the "hidden" attribute on SVG, so it is hidden with CSS and only shown if the PNG is missing */
+.cat .fb{display:none}
+.cat.nofile .fb{display:block}

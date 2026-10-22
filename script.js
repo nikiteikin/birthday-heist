@@ -6,7 +6,7 @@ const CONFIG = {
   age: "29",
   message: "Your talents are known. Your coffee habit is noted.",
   joke: "Mission status: still undefeated in meetings that could have been emails.",
-  note: "Your treasure was already stolen by someone else.\nReturn to the real world and find out more about your gift."
+  note: "Your treasure has been stolen by the greedy King Gabe of the Kingdom of Steam!\nHead to his kingdom and steal it back, Phantom Thief!"
 };
 
 /* ================= Story text ================= */
@@ -61,8 +61,13 @@ function showScene(id) {
 /* ================= AudioManager =================
    Tries audio/<path>.mp3 first. If the file is missing or blocked, it falls back to a
    small synthesized beep, so the site works with zero audio files. */
+/* Each sound is looked up as audio/<path>.mp3, then .wav, .ogg and .m4a. The first one that works is remembered. */
+/* Synthesized replacement sounds are used only when a real sound file is missing.
+   Set SYNTH_FALLBACK to false to turn them off completely and play real files only. */
+const SYNTH_FALLBACK = true;
+const EXTS = ["mp3", "wav", "ogg", "m4a"];
 const AudioManager = {
-  ctx: null, cache: {},
+  ctx: null, cache: {}, ext: {}, miss: {}, uiReal: false, lastFile: 0,
   files: {
     hover: "ui/hover", click: "ui/click", confirm: "ui/confirm", back: "ui/back",
     intro: "scenes/intro", awaken: "scenes/explosion", card: "scenes/calling-card", victory: "scenes/victory",
@@ -85,11 +90,22 @@ const AudioManager = {
   play(name) {
     if (this.ctx && this.ctx.state === "suspended") this.ctx.resume();
     const f = this.files[name];
-    if (!f) return this.beep(name);
-    const a = this.cache[name] || (this.cache[name] = new Audio(`audio/${f}.mp3`));
+    if (!f || this.miss[name]) return this.beep(name);
+    if (this.ext[name]) this.lastFile = Date.now();
+    this.tryPlay(name, f, this.ext[name] ? -1 : 0);
+  },
+  tryPlay(name, f, i) {
+    const ext = i < 0 ? this.ext[name] : EXTS[i], key = name + "." + ext;
+    const a = this.cache[key] || (this.cache[key] = new Audio(`audio/${f}.${ext}`));
     a.currentTime = 0;
     const p = a.play();
-    if (p) p.catch(() => this.beep(name));
+    if (!p) return;
+    p.then(() => { this.ext[name] = ext; if (f.startsWith("ui/")) this.uiReal = true; }).catch(err => {
+      if (err && (err.name === "NotAllowedError" || err.name === "AbortError")) return;   /* blocked or interrupted, not a missing file */
+      if (i < 0) return this.beep(name);
+      if (i + 1 < EXTS.length) this.tryPlay(name, f, i + 1);
+      else { this.miss[name] = true; this.beep(name); }
+    });
   },
   /* Explosion: a long noise sweep through a falling low-pass plus a deep thump */
   boom(c) {
@@ -118,6 +134,11 @@ const AudioManager = {
     o.connect(og).connect(c.destination); o.start(t); o.stop(t + .2);
   },
   beep(name) {
+    if (!SYNTH_FALLBACK || name === "hover") return;   /* hover blips only play from a real file */
+    /* once a real UI sound exists (for example click.wav) there are no synthesized UI beeps or typing ticks on top of it */
+    if (this.uiReal && (name === "tick" || (this.files[name] || "").startsWith("ui/"))) return;
+    /* never layer a synthesized sound on a real one that has just started */
+    if (Date.now() - this.lastFile < 250) return;
     const c = this.ctx; if (!c) return;
     if (name === "shot") return this.gun(c);
     if (name === "awaken") return this.boom(c);
@@ -194,16 +215,20 @@ const Music = {
   el: null, muted: false, vol: .5, stopped: false,
   /* The track is loaded as soon as the page opens, so it can start instantly on the first click. */
   init() {
-    this.el = new Audio("audio/music/poem.mp3");
+    const exts = ["mp3", "m4a", "ogg", "wav"]; let k = 0;
+    this.el = new Audio(`audio/music/poem.${exts[0]}`);
     this.el.loop = true; this.el.preload = "auto"; this.el.volume = 0;
     const probe = new Audio(); probe.volume = .5; this.canVol = probe.volume === .5;   /* false on iPhone Safari */
-    this.el.addEventListener("error", () => console.warn("Music file not found: audio/music/poem.mp3"));
+    this.el.addEventListener("error", () => {
+      if (++k < exts.length) { this.el.src = `audio/music/poem.${exts[k]}`; if (this.wanted && !this.stopped) this.el.play().catch(() => {}); }
+      else console.warn("Music file not found: audio/music/poem.(mp3|m4a|ogg|wav)");
+    });
   },
   /* Called when the envelope is clicked. */
   start() {
     $("mute").hidden = false;
     if (this.stopped) return;
-    this.el.muted = this.muted;
+    this.el.muted = this.muted; this.wanted = true;
     const p = this.el.play();
     if (p) p.then(() => { if (!this.stopped) this.fade(this.vol); }).catch(() => {});
   },
@@ -298,7 +323,7 @@ const Maze = {
     this.need = this.map.flat().filter(t => t === 3).length;
     this.map.forEach((r, y) => r.forEach((t, x) => { if (t === 2) { this.pos = { x, y }; r[x] = 0; } }));
     this.foe = { i: 3, dir: 1, alive: true };
-    this.foeEl.hidden = false; this.placeFoe();
+    this.foeEl.style.display = ""; this.placeFoe();
     clearInterval(this.patrol); this.patrol = setInterval(() => this.patrolStep(), 650);
     this.on = true; this.render(); this.idle();
   },
@@ -357,7 +382,7 @@ const Maze = {
     const won = await Battle.run();
     showScene("maze");
     if (won) {
-      this.foe.alive = false; this.foeEl.hidden = true;
+      this.foe.alive = false; this.foeEl.style.display = "none";
       this.on = true; this.render(); this.idle();
       Morgana.say("We did it! Now grab the rest!", 3500);
     } else {

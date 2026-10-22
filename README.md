@@ -26,7 +26,9 @@ Everything works without these files. Add them later with the same names and the
 
 Background music: put your own track at `audio/music/poem.mp3`. It fades in when the envelope is opened, loops, and fades out as soon as the card is clicked; the ♪ button in the corner mutes it meanwhile. Nothing plays if the file is missing.
 
-If an mp3 is missing or the browser blocks it, the game falls back to a beep instead of failing.
+Formats: every sound is looked up as `.mp3`, then `.wav`, `.ogg`, `.m4a`, so a `.wav` file works too (WAV is large, so MP3 is better for a website). The music track accepts the same formats.
+
+If a sound file is missing or the browser blocks it, the game falls back to a beep instead of failing.
 
 ## 5. Notes
 - Audio starts only after the first click on "Begin the operation".

@@ -35,6 +35,7 @@ If a sound file is missing or the browser blocks it, the game falls back to a be
 - Maze: arrow keys or WASD on desktop, on-screen D-pad on touch devices. The layout is fixed and always solvable (`MAP` in `script.js`; the number of cards is counted from the map).
 - Maze look: the player icon is `assets/characters/player.png`. Walls are flickering binary code; change its colour with `--code-rgb` at the top of `style.css` (`229,23,31` gives red).
 - Reveal scene: a results-screen style card. `assets/reveal/` holds the layers (`bg`, `char`, `l1`-`l4` for the name letters); the grayscale look, red bolts and the "Lvl 29" starburst are CSS. Every piece lands with a gunshot sound, then a gloss sweep runs.
+- Flow after the vow: a levitating mask (`assets/mask.png`) that you click three times. It breaks apart piece by piece and bursts, then the character card appears with the AWAKEN. heading. Jump to it with `index.html?scene=mask`.
 - Villain: a Shadow patrols the right and bottom corridors (`PATROL` in `script.js`). Touching it starts a turn-based fight in Persona 5 Royal style (the `Battle` section of `script.js`, enemy art in `assets/enemy/shadow.png`). Win and the Shadow is gone. Lose and the maze restarts. Test the fight directly with `index.html?scene=battle`.
 - Not in v1.0: moving enemies, background music loop, separate `docs/` folder.
 - If you use official Persona art or audio, treat it as a fan-project asset and keep the site private.
@@ -45,3 +46,9 @@ If a sound file is missing or the browser blocks it, the game falls back to a be
 - Safari ignores audio volume, so on iPhone the music starts at full track volume and stops without a fade. Keep the mp3 at a moderate loudness. Synthesized sounds follow the iPhone silent switch.
 - iPhone has no Impact font. Put a bold condensed font at `fonts/persona-font.ttf` for the same look on every device.
 - For a full-screen app feel: Share > Add to Home Screen.
+
+## 7. Sounds: Kenney Interface Sounds
+- Sounds are played through the Web Audio API: the files are downloaded when the page opens and decoded on the first tap, so they start instantly and can overlap. All sound paths are in `SOUND_FILES` at the top of the audio section of `script.js`.
+- Kenney's "Interface Sounds" pack is CC0 (no credit required, but nice: "Sounds: Kenney, kenney.nl"). Use the WAV version from https://github.com/Calinou/kenney-interface-sounds, then run `tools/import-kenney.ps1` (instructions inside the file). It copies 11 sounds into `audio/ui/` and `audio/game/`.
+- The pack has UI sounds only. Gunshot, explosion, card flip and victory (`audio/scenes/`) stay synthesized until you add files named in `SOUND_FILES`.
+- Open the site through GitHub Pages or a local server (`python -m http.server`, or the VS Code Live Server extension). Opened straight from disk (`file://`) the browser blocks the fast loader and a slower fallback is used.

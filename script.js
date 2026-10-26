@@ -5,7 +5,6 @@ const CONFIG = {
   name: "YANA",
   age: "29",
   message: "Your talents are known. Your coffee habit is noted.",
-  joke: "Mission status: still undefeated in meetings that could have been emails.",
   note: "Your treasure has been stolen by the greedy King Gabe of the Kingdom of Steam!\nHead to his kingdom and steal it back, Phantom Thief!"
 };
 
@@ -62,17 +61,24 @@ function showScene(id) {
    Tries audio/<path>.mp3 first. If the file is missing or blocked, it falls back to a
    small synthesized beep, so the site works with zero audio files. */
 /* Each sound is looked up as audio/<path>.mp3, then .wav, .ogg and .m4a. The first one that works is remembered. */
-/* Synthesized replacement sounds are used only when a real sound file is missing.
-   Set SYNTH_FALLBACK to false to turn them off completely and play real files only. */
+/* ================= Sounds =================
+   Every sound is one file, listed here. Change a path (or its extension) to use your own file.
+   Files are downloaded once and played through the Web Audio API: near-zero latency, sounds can
+   overlap, and it behaves the same on desktop and on iPhone. If a file is missing, a synthesized
+   beep plays instead (set SYNTH_FALLBACK to false to turn that off). */
+const SOUND_FILES = {
+  click: "audio/ui/click.wav", hover: "audio/ui/hover.wav", confirm: "audio/ui/confirm.wav", back: "audio/ui/back.wav", tick: "audio/ui/tick.wav",
+  move: "audio/game/move.wav", wall: "audio/game/wall.wav", collect: "audio/game/collect.wav", unlock: "audio/game/unlock.wav",
+  caught: "audio/game/caught.wav", win: "audio/game/win.wav",
+  card: "audio/scenes/calling-card.wav", shot: "audio/scenes/shot.wav", awaken: "audio/scenes/explosion.wav", victory: "audio/scenes/victory.wav"
+};
+const SOUND_VOLUME = { hover: .5, tick: .4, move: .7 };   /* optional per-sound volume, 1 = full */
+const MASTER_VOLUME = .8;
 const SYNTH_FALLBACK = true;
-const EXTS = ["mp3", "wav", "ogg", "m4a"];
+
 const AudioManager = {
-  ctx: null, cache: {}, ext: {}, miss: {}, uiReal: false, lastFile: 0,
-  files: {
-    hover: "ui/hover", click: "ui/click", confirm: "ui/confirm", back: "ui/back",
-    intro: "scenes/intro", awaken: "scenes/explosion", card: "scenes/calling-card", victory: "scenes/victory",
-    move: "game/move", wall: "game/wall", collect: "game/collect", unlock: "game/unlock", win: "game/win", shot: "scenes/shot"
-  },
+  ctx: null, master: null, raw: {}, dec: {}, buf: {}, els: {}, miss: {}, uiReal: false, lastFile: 0,
+  useEl: location.protocol === "file:",   /* fetch() is blocked on file://, so plain <audio> is used when the page is opened from disk */
   /* [frequency, seconds, waveform, volume] played one after another */
   synth: {
     hover: [[880, .03]], click: [[520, .05, "square"]], confirm: [[523, .08], [784, .14]],
@@ -84,27 +90,59 @@ const AudioManager = {
     card: [[196, .15, "square"], [392, .35, "square"]], intro: [[110, .6, "sine", .1]],
     win: [[523, .12], [659, .12], [784, .12], [1047, .5]], victory: [[392, .15], [523, .15], [659, .15], [784, .5]]
   },
+  /* Start downloading every sound right away. Nothing is played yet. */
+  preload() {
+    if (this.useEl) return;
+    Object.entries(SOUND_FILES).forEach(([name, url]) => {
+      this.raw[name] = fetch(url).then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); }).catch(() => { this.miss[name] = true; return null; });
+    });
+  },
+  /* Called on the first tap or click (browsers only allow audio after that): starts the engine and decodes the files. */
   unlock() {
-    try { this.ctx = this.ctx || new (window.AudioContext || window.webkitAudioContext)(); this.ctx.resume(); } catch (e) {}
+    try {
+      if (!this.ctx) {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
+        this.master = this.ctx.createGain(); this.master.gain.value = MASTER_VOLUME; this.master.connect(this.ctx.destination);
+        if (navigator.audioSession) navigator.audioSession.type = "playback";   /* iPhone: play even with the silent switch on, where supported */
+      }
+      this.ctx.resume();
+    } catch (e) {}
+    if (!this.useEl && this.ctx) Object.keys(SOUND_FILES).forEach(n => this.decode(n));
+  },
+  decode(name) {
+    if (this.dec[name]) return this.dec[name];
+    return this.dec[name] = (this.raw[name] || Promise.resolve(null))
+      .then(ab => ab && new Promise(res => this.ctx.decodeAudioData(ab.slice(0), res, () => res(null))))
+      .then(b => {
+        if (b) { this.buf[name] = b; if (SOUND_FILES[name].includes("/ui/")) this.uiReal = true; } else this.miss[name] = true;
+        return b;
+      });
   },
   play(name) {
-    if (this.ctx && this.ctx.state === "suspended") this.ctx.resume();
-    const f = this.files[name];
-    if (!f || this.miss[name]) return this.beep(name);
-    if (this.ext[name]) this.lastFile = Date.now();
-    this.tryPlay(name, f, this.ext[name] ? -1 : 0);
+    if (this.ctx && this.ctx.state !== "running") this.ctx.resume();
+    if (this.useEl) return this.playEl(name);
+    if (!SOUND_FILES[name] || this.miss[name]) return this.beep(name);
+    const b = this.buf[name];
+    if (b) return this.playBuf(name, b);
+    if (!this.ctx) return;   /* nothing can play before the first tap */
+    this.decode(name).then(b => b ? this.playBuf(name, b) : this.beep(name));
   },
-  tryPlay(name, f, i) {
-    const ext = i < 0 ? this.ext[name] : EXTS[i], key = name + "." + ext;
-    const a = this.cache[key] || (this.cache[key] = new Audio(`audio/${f}.${ext}`));
+  playBuf(name, b) {
+    this.lastFile = Date.now();
+    const s = this.ctx.createBufferSource(), g = this.ctx.createGain();
+    s.buffer = b; g.gain.value = SOUND_VOLUME[name] ?? 1;
+    s.connect(g); g.connect(this.master); s.start(0);
+  },
+  /* Fallback for pages opened straight from disk (file://) */
+  playEl(name) {
+    const url = SOUND_FILES[name];
+    if (!url || this.miss[name]) return this.beep(name);
+    const a = this.els[name] || (this.els[name] = new Audio(url));
     a.currentTime = 0;
     const p = a.play();
-    if (!p) return;
-    p.then(() => { this.ext[name] = ext; if (f.startsWith("ui/")) this.uiReal = true; }).catch(err => {
-      if (err && (err.name === "NotAllowedError" || err.name === "AbortError")) return;   /* blocked or interrupted, not a missing file */
-      if (i < 0) return this.beep(name);
-      if (i + 1 < EXTS.length) this.tryPlay(name, f, i + 1);
-      else { this.miss[name] = true; this.beep(name); }
+    if (p) p.then(() => { this.lastFile = Date.now(); if (url.includes("/ui/")) this.uiReal = true; }).catch(err => {
+      if (err && (err.name === "NotAllowedError" || err.name === "AbortError")) return;
+      this.miss[name] = true; this.beep(name);
     });
   },
   /* Explosion: a long noise sweep through a falling low-pass plus a deep thump */
@@ -136,7 +174,7 @@ const AudioManager = {
   beep(name) {
     if (!SYNTH_FALLBACK || name === "hover") return;   /* hover blips only play from a real file */
     /* once a real UI sound exists (for example click.wav) there are no synthesized UI beeps or typing ticks on top of it */
-    if (this.uiReal && (name === "tick" || (this.files[name] || "").startsWith("ui/"))) return;
+    if (this.uiReal && (name === "tick" || (SOUND_FILES[name] || "").includes("/ui/"))) return;
     /* never layer a synthesized sound on a real one that has just started */
     if (Date.now() - this.lastFile < 250) return;
     const c = this.ctx; if (!c) return;
@@ -152,6 +190,8 @@ const AudioManager = {
     });
   }
 };
+
+AudioManager.preload();
 
 /* Dialogue markup: *word* is drawn in red (Persona-style keyword highlight). */
 function mark(line) {
@@ -313,7 +353,10 @@ const Maze = {
       }, 110);
     }
     this.foeEl = g.appendChild(document.createElement("div"));
-    this.foeEl.className = "villain"; this.foeEl.textContent = "\uD83D\uDC79";
+    this.foeEl.className = "villain";
+    const ico = new Image(); ico.alt = ""; ico.src = "assets/enemy/icon.png";
+    ico.onerror = () => { ico.remove(); this.foeEl.textContent = "\uD83D\uDC79"; };   /* emoji if the icon file is missing */
+    this.foeEl.appendChild(ico);
     this.reset();
     Morgana.say("Hey! The treasure is protected!", 4000);
   },
@@ -593,19 +636,78 @@ async function story() {
   AudioManager.play("confirm");
   await Dialogue.play(VOW, $("oath"), { speed: 18 });
 
-  await awakening();
+  await maskScene(); revealScene();
 }
 
-/* AWAKEN. appears on black, then explodes into the character card (the reveal scene) */
-async function awakening() {
-  const s = $("awaken"), t = $("awTitle");
-  s.classList.remove("red", "boom"); t.className = ""; t.textContent = "AWAKEN.";
-  showScene("awaken");
-  await wait(1700);
-  AudioManager.play("awaken"); flash(); shake();
-  s.classList.add("red", "boom"); t.className = "slam";
-  await wait(1900);
-  revealScene();
+/* Mask scene: a levitating, trembling mask. Click it three times: it breaks apart piece by piece,
+   then bursts, and the character card (the reveal scene) appears. */
+const MASK_HITS = 3;
+
+function buildShards(w) {
+  const cols = 5, rows = 3, P = [];
+  for (let r = 0; r <= rows; r++) {
+    P[r] = [];
+    for (let c = 0; c <= cols; c++) {
+      const edge = r === 0 || r === rows || c === 0 || c === cols, j = () => edge ? 0 : (Math.random() - .5) * .7;
+      P[r][c] = [(c + j()) / cols * 100, (r + j()) / rows * 100];
+    }
+  }
+  const add = pts => {
+    const cx = (pts[0][0] + pts[1][0] + pts[2][0]) / 3, cy = (pts[0][1] + pts[1][1] + pts[2][1]) / 3;
+    const dist = Math.hypot((cx - 50) / 50, (cy - 50) / 50) + (Math.random() - .5) * .25;   /* far from the centre breaks first */
+    const el = document.createElement("div"), ang = Math.atan2(cy - 50, cx - 50), far = 140 + Math.random() * 170;
+    el.className = "shard"; el.dataset.stage = dist > .75 ? 1 : dist > .4 ? 2 : 3;
+    el.style.clipPath = "polygon(" + pts.map(p => p[0].toFixed(1) + "% " + p[1].toFixed(1) + "%").join(",") + ")";
+    el.style.setProperty("--dx", Math.cos(ang) * far + "px");
+    el.style.setProperty("--dy", Math.sin(ang) * far + 170 + "px");   /* gravity pulls the pieces down */
+    el.style.setProperty("--r", (Math.random() - .5) * 260 + "deg");
+    el.style.setProperty("--d", (Math.random() * .15).toFixed(2) + "s");
+    w.appendChild(el);
+  };
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const a = P[r][c], b = P[r][c + 1], d = P[r + 1][c + 1], e = P[r + 1][c];
+    if ((r + c) % 2) { add([a, b, d]); add([a, d, e]); } else { add([a, b, e]); add([b, d, e]); }
+  }
+}
+function breakShards(w, upTo) {
+  w.querySelectorAll(".shard:not(.gone)").forEach(el => { if (+el.dataset.stage <= upTo) el.classList.add("gone"); });
+}
+/* ring + flying debris at the point that was clicked (x, y are 0..1 inside the mask) */
+function impact(w, x, y) {
+  const at = el => { el.style.left = x * 100 + "%"; el.style.top = y * 100 + "%"; w.appendChild(el); };
+  const ring = document.createElement("i"); ring.className = "ring"; at(ring); setTimeout(() => ring.remove(), 450);
+  for (let i = 0; i < 10; i++) {
+    const d = document.createElement("i"), a = Math.random() * Math.PI * 2, L = 60 + Math.random() * 120;
+    d.className = "deb" + (i % 3 ? "" : " red");
+    d.style.setProperty("--dx", Math.cos(a) * L + "px"); d.style.setProperty("--dy", Math.sin(a) * L + 80 + "px");
+    d.style.setProperty("--r", Math.random() * 360 + "deg");
+    at(d); setTimeout(() => d.remove(), 850);
+  }
+}
+function maskScene() {
+  const s = $("mask"), w = $("maskWrap");
+  s.classList.remove("boom"); w.innerHTML = ""; w.dataset.stage = "0";
+  buildShards(w);
+  showScene("mask");
+  return new Promise(done => {
+    let hits = 0, busy = false;
+    const hit = e => {
+      if (busy) return;
+      if (e) e.preventDefault();
+      hits++;
+      const r = w.getBoundingClientRect();
+      const x = e && e.clientX != null ? (e.clientX - r.left) / r.width : .5, y = e && e.clientY != null ? (e.clientY - r.top) / r.height : .5;
+      AudioManager.play("shot"); pulse(w, "hit", 300); impact(w, x, y);
+      w.dataset.stage = String(hits);
+      if (hits < MASK_HITS) { breakShards(w, hits); return; }
+      busy = true;
+      breakShards(w, 99);
+      AudioManager.play("awaken"); flash(); shake(); s.classList.add("boom");
+      setTimeout(done, 1700);
+    };
+    w.onpointerdown = hit;
+    w.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); hit(null); } };
+  });
 }
 
 /* Reveal: the art builds up piece by piece. Every piece lands with a gunshot, like the Persona 5 results screen. */
@@ -684,6 +786,7 @@ if (jump && $(jump)) {
   AudioManager.unlock();
   if (jump === "maze") { showScene("maze"); Maze.start(); }
   else if (jump === "battle") { showScene("battle"); Battle.run().then(() => { showScene("maze"); Maze.start(); }); }
+  else if (jump === "mask") maskScene().then(revealScene);
   else if (jump === "reveal") revealScene();
   else showScene(jump);
 }

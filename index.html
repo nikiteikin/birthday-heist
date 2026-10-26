@@ -9,7 +9,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="format-detection" content="telephone=no">
-<title>Birthday Heist</title>
+<title>⌁ T̷H̷E̷ C̷A̷R̷D̷ ⌁</title>
+<link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -47,9 +48,10 @@
   </div>
 </section>
 
-<section id="awaken" class="scene">
-  <h2 id="awTitle"></h2>
+<section id="mask" class="scene">
   <div class="burst" aria-hidden="true"></div>
+  <div class="maskfloat"><div class="maskwrap" id="maskWrap" role="button" tabindex="0" aria-label="Break the mask"></div></div>
+  <p class="hint" id="maskHint">Click the mask</p>
 </section>
 
 <section id="reveal" class="scene">
@@ -67,8 +69,7 @@
     <img id="rvL4" class="rv" src="assets/reveal/l4.webp" alt="" style="left:89.748%;top:74.701%;width:3.984%;height:8.36%">
     <div id="rvLvl" class="rv lvl" style="left:31%;top:5%;width:24%"><span class="star"></span><b>29</b><i>Lvl</i></div>
   </div>
-  <h2 class="hb st" style="--i:5.75">HAPPY BIRTHDAY!</h2>
-  <p class="msg st" style="--i:6.6" data-cfg="joke"></p>
+  <h2 class="hb st" style="--i:5.75">AWAKEN.</h2>
   <button class="btn hidden" id="toBrief">Continue</button>
 </section>
 

@@ -763,7 +763,16 @@ async function openCard() {
   if (!deal.classList.contains("ready") || openingCard.classList.contains("open")) return;
   AudioManager.play("card"); Music.stop();
   openingCard.classList.add("open"); $("note").style.opacity = 0;
-  await wait(1700);
+  await wait(1200);   /* let the flip finish, then wait for a click so there is time to read the invitation */
+  $("note").textContent = "Click to continue."; $("note").style.opacity = ""; $("note").classList.add("blink");
+  await new Promise(done => {
+    const go = e => {
+      if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
+      $("start").removeEventListener("click", go); removeEventListener("keydown", go); done();
+    };
+    $("start").addEventListener("click", go); addEventListener("keydown", go);
+  });
+  AudioManager.play("confirm");
   story();
 }
 openingCard.onclick = openCard;

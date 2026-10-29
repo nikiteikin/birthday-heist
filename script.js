@@ -714,14 +714,14 @@ function maskScene() {
 async function revealScene() {
   const s = $("reveal");
   s.classList.remove("done"); s.querySelectorAll(".rv").forEach(e => e.classList.remove("in"));
-  showScene("reveal"); later("toBrief", 7000);
-  /* [layer, wait before it lands in ms]: background, red bolts, character, the whole name at once, then the Lvl 29 starburst */
-  const steps = [["rvBg", 500], ["rvB1", 450], ["rvB2", 300], ["rvB3", 300], ["rvChar", 600], [["rvL1", "rvL2", "rvL3", "rvL4"], 800], ["rvLvl", 600]];
+  showScene("reveal"); later("toBrief", 7600);
+  /* [layer, wait before it lands in ms]: background, character, LEVEL UP title, NEW ABILITIES banner, the three ability cards, then the closing plate */
+  const steps = [["lvBg", 500], ["lvPerson", 800], ["lvTitle", 700], ["lvBanner", 600], ["lvS1", 500], ["lvS2", 350], ["lvS3", 350], ["lvPlate", 600]];
   for (const [id, gap] of steps) {
     await wait(gap);
     if (GameState.scene !== "reveal") return;
     [].concat(id).forEach(i => $(i).classList.add("in")); AudioManager.play("shot");
-    if (id === "rvChar" || id === "rvLvl") shake();
+    if (id === "lvPerson" || id === "lvTitle") shake();
   }
   await wait(700);
   if (GameState.scene !== "reveal") return;

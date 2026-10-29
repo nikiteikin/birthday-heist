@@ -434,11 +434,41 @@ body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-
 .cat.nofile .fb{display:block}
 
 /* villain icon in the maze */
-#grid .villain img{display:block;width:92%;height:92%;object-fit:contain;pointer-events:none}
+#grid .villain img{display:block;width:92%;height:92%;object-fit:contain;pointer-events:none;filter:brightness(1.15) saturate(1.15)}
 /* the note is longer now: leave room above the gift when it rises out */
 .stage{transition:margin-top .5s}
 #final.open .stage{margin-top:calc(var(--g)*.32)}
 @media (max-width:899px){
   .stage{--g:min(74vw,26rem,31svh)}
   .paper{font-size:calc(var(--g)*.056)}
+}
+
+/* ---------- Reveal: the Level Up picture assembled from layers ---------- */
+.rvstage{--sw:min(94vw,calc((100svh - 17rem)*1.5),1100px);width:var(--sw);aspect-ratio:1536/1024;background:#000}
+#lvBg{left:0;top:0;width:100%;height:100%;object-fit:cover}
+#lvPerson{left:34.570%;top:4.004%;width:61.784%;height:95.996%}
+#lvTitle{left:0.065%;top:0.098%;width:41.081%;height:47.070%}
+#lvBanner{left:3.125%;top:40.820%;width:27.409%;height:18.555%}
+#lvS1{left:0.911%;top:56.152%;width:27.083%;height:16.699%}
+#lvS2{left:12.370%;top:68.359%;width:25.911%;height:17.188%}
+#lvS3{left:2.148%;top:83.887%;width:24.609%;height:16.113%}
+#lvPlate{left:61.979%;top:76.172%;width:38.021%;height:23.730%}
+#lvBg.in{animation:rvbg .55s ease-out both}
+#lvPerson.in{animation:rvchar .5s cubic-bezier(.2,1.3,.4,1) both}
+#lvTitle.in{animation:rvstamp .45s cubic-bezier(.2,1.5,.4,1) both}
+#lvBanner.in,#lvS1.in,#lvS2.in,#lvS3.in{animation:lvslide .45s cubic-bezier(.2,1.4,.4,1) both}
+#lvPlate.in{animation:lvslideR .45s cubic-bezier(.2,1.4,.4,1) both}
+@keyframes lvslide{from{opacity:0;transform:translateX(-45%) rotate(-4deg)}to{opacity:1;transform:none}}
+@keyframes lvslideR{from{opacity:0;transform:translateX(45%) rotate(4deg)}to{opacity:1;transform:none}}
+/* phones in portrait: a tall layout so the ability cards stay readable */
+@media (max-width:760px) and (orientation:portrait){
+  .rvstage{--sw:96vw;aspect-ratio:600/1000}
+  #lvPerson{left:-1.000%;top:1.000%;width:91.737%;height:57.014%}
+  #lvTitle{left:0.667%;top:0.400%;width:52.583%;height:24.100%}
+  #lvBanner{left:2.333%;top:47.000%;width:43.503%;height:11.780%}
+  #lvS1{left:1.333%;top:60.000%;width:58.933%;height:14.535%}
+  #lvS2{left:41.667%;top:73.500%;width:56.383%;height:14.960%}
+  #lvS3{left:1.333%;top:87.000%;width:53.550%;height:14.025%}
+  #lvPlate{left:50.000%;top:47.000%;width:50.613%;height:12.636%}
+  #lvPerson{-webkit-mask-image:linear-gradient(#000 78%,transparent);mask-image:linear-gradient(#000 78%,transparent)}
 }

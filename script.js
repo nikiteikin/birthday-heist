@@ -9,7 +9,7 @@ const CONFIG = {
 };
 
 /* ================= Story text ================= */
-const INTRO = ["We've been waiting for you.", "Do you remember why you're here?"];
+const INTRO = ["We've been waiting for you.", "Do you know why you're here?"];
 const OATH = [
   "You have finally *arrived*.\nAnother year stands behind you.\n\nA year of *victories*.\nOf *failures*.\nOf choices you wish you could change.\nAnd moments you would never trade for anything.\n\nYet despite everything...\nyou are still *moving forward*.",
   "So *answer* me.\nWhen the world demands more from you...\nWhen another year brings new challenges...\n\nWill you continue to follow your own *path*?\nWill you embrace every victory?\nEvery mistake?\nEvery moment yet to come?\n\nWill you claim this *new year* as your own?"
@@ -145,6 +145,13 @@ const AudioManager = {
       this.miss[name] = true; this.beep(name);
     });
   },
+  /* A short typewriter blip with a slightly random pitch, so typing does not sound like a machine gun */
+  typeBlip(c) {
+    const t = c.currentTime, o = c.createOscillator(), g = c.createGain();
+    o.type = "square"; o.frequency.value = 900 + Math.random() * 700;
+    g.gain.setValueAtTime(.05, t); g.gain.exponentialRampToValueAtTime(.001, t + .03);
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + .03);
+  },
   /* Explosion: a long noise sweep through a falling low-pass plus a deep thump */
   boom(c) {
     const t = c.currentTime, len = Math.floor(c.sampleRate * 1.4);
@@ -174,10 +181,11 @@ const AudioManager = {
   beep(name) {
     if (!SYNTH_FALLBACK || name === "hover") return;   /* hover blips only play from a real file */
     /* once a real UI sound exists (for example click.wav) there are no synthesized UI beeps or typing ticks on top of it */
-    if (this.uiReal && (name === "tick" || (SOUND_FILES[name] || "").includes("/ui/"))) return;
+    if (name !== "tick" && this.uiReal && (SOUND_FILES[name] || "").includes("/ui/")) return;
     /* never layer a synthesized sound on a real one that has just started */
     if (Date.now() - this.lastFile < 250) return;
     const c = this.ctx; if (!c) return;
+    if (name === "tick") return this.typeBlip(c);
     if (name === "shot") return this.gun(c);
     if (name === "awaken") return this.boom(c);
     let t = c.currentTime;
@@ -224,7 +232,7 @@ const Dialogue = {
     btn.classList.remove("hidden");
     const P = lines.map(mark);
     return new Promise(done => {
-      let i = 0, n = 0, typing = false, timer;
+      let i = 0, n = 0, typing = false, timer, lastTick = 0;
       const finish = () => {
         clearInterval(timer); typing = false; paint(txt, P[i], Infinity); btn.textContent = "Continue";
         if (end && i === lines.length - 1) { btn.classList.add("hidden"); box.onclick = null; done(); }
@@ -233,7 +241,8 @@ const Dialogue = {
         n = 0; typing = true; txt.textContent = ""; btn.textContent = "Skip";
         timer = setInterval(() => {
           paint(txt, P[i], ++n);
-          if (n % 4 === 0) AudioManager.play("tick");
+          const ch = P[i].plain[n - 1], now = Date.now();
+          if (ch && ch.trim() && now - lastTick > 45) { AudioManager.play("tick"); lastTick = now; }   /* typing sound */
           if (n >= P[i].plain.length) finish();
         }, speed);
       };
